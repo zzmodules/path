@@ -37,6 +37,7 @@ fn main() -> int {
   assert(string::strlen(expected_string) == filename_length);
   assert(mem::eq(expected_string, buffer_string, filename_length));
 
+  log::info("extension=%s", buffer_extension);
   static_attest(5 == len(buffer_extension));
   assert(mem::eq(".toml", buffer_extension, 5));
 
