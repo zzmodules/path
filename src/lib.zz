@@ -18,6 +18,10 @@ export using delimiter::{
 }
 
 export using path_buffer::{
+  MAX_PATH_BUFFER_BYTES as MAX_PATH_BYTES,
+}
+
+export using path_buffer::{
   MAX_PATH_BUFFER_BYTES,
   canonicalize,
   PathBuffer,
