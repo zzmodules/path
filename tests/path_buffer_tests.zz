@@ -1,3 +1,4 @@
+using err
 using err::{ assert, panic }
 using log
 using mem
@@ -9,6 +10,9 @@ using string
 fn main() -> int {
   let separator = path::separator();
   new+4096 buffer = path::path_buffer();
+
+  new+1024 mut error = err::make();
+  new p = path::canonicalize("./", &error);
 
   buffer.push(separator);
   buffer.push("user");

@@ -91,7 +91,11 @@ export fn canonicalize(PathBufferBox new mut *self, char *pathspec, Err+ErrorTai
     return;
   }
 
-  native::realpath(self->cstr(), as<char mut *>(self->cstr()), error);
+  char mut resolved[4096] = {0};
+  native::realpath(self->cstr(), resolved, error);
+  static_attest(nullterm(resolved));
+  self->buffer.string.clear();
+  self->buffer.string.append_cstr(resolved);
 }
 
 /**
@@ -127,6 +131,11 @@ export fn normalize(PathBuffer+T mut *self, Err+ErrorTail mut *error) -> bool
     static_attest(len(pathspec_ptr) > 1);
     if '.' == pathspec_ptr[0] && (0 == pathspec_ptr[1] || separator::character() == pathspec_ptr[1]) {
       char mut cwd[2048] = {0};
+      new+2048 mut tmp = string::make();
+      if pathspec_ptr_size >= 2 {
+        static_attest(len(pathspec_ptr) > 2);
+        tmp.append_cstr(pathspec_ptr);
+      }
 
       if !native::getcwd(as<char mut *>(cwd), 2048, error) {
         return false;
@@ -134,6 +143,7 @@ export fn normalize(PathBuffer+T mut *self, Err+ErrorTail mut *error) -> bool
 
       self->string.clear();
       self->string.append_cstr(as<char *>(cwd));
+      self->string.push(separator::character());
     } else if '.' == pathspec_ptr[0] && '.' == pathspec_ptr[1] {
       char mut cwd[2048] = {0};
       char mut resolved[2048] = {0};
