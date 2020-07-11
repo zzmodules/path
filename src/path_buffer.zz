@@ -84,8 +84,7 @@ export fn canonicalize(PathBufferBox new mut *self, char *pathspec, Err+ErrorTai
   where safe(pathspec)
   where nullterm(pathspec)
 {
-  init(self, pathspec);
-
+  self->init(pathspec);
   self->normalize(error);
 
   if error->check() {
@@ -272,6 +271,13 @@ export fn as_path_ptr(PathBuffer+T *self) -> Path *
   static_attest(nullterm(ref->pathspec));
   static_attest(len(ref->pathspec) <= MAX_PATH_BUFFER_BYTES);
   return ref;
+}
+
+/**
+ * Returns a pointer to the `String+` container in this for this `PathBuffer+`.
+ */
+export fn as_string(PathBuffer+T *self) -> String * {
+  return &self->string;
 }
 
 /**
