@@ -221,6 +221,16 @@ if error.check() {
 }
 ```
 
+#### `b.string`
+
+A tail sized `String+` container for building the underlying path
+string.
+
+#### `b.path`
+
+A `Path` with a pointer to the underlying memory in the `PathBuffer+`
+string container.
+
 #### `b.normalize(error)`
 
 Normalizes the current pathspec for a `PathBuffer+`. An `err::Err+ mut`
