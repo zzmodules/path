@@ -1,0 +1,90 @@
+using err::{ assert }
+using log
+using mem
+using path
+using os
+
+fn main() -> int
+if #(os::detect::posix) {
+  {
+    new filename = path::from("zz.toml");
+    let filename_string = filename.cstr();
+    let filename_extension = filename.extension();
+
+    assert(7 == filename.length());
+    assert(7 == filename.len);
+    static_attest(7 == len(filename_string));
+    assert(mem::eq("zz.toml", filename_string, 7));
+
+    static_attest(5 == len(filename_extension));
+    assert(mem::eq(".toml", filename_extension, 5));
+
+    assert(false == filename.is_absolute());
+    assert(true == filename.is_relative());
+    assert(false == filename.is_root());
+    assert(false == filename.has_root());
+  }
+
+  {
+    new filename = path::from("../path/to/zz.toml");
+    let filename_string = filename.cstr();
+    let filename_extension = filename.extension();
+
+    assert(18 == filename.length());
+    assert(18 == filename.len);
+    static_attest(18 == len(filename_string));
+    assert(mem::eq("../path/to/zz.toml", filename_string, 18));
+
+    static_attest(5 == len(filename_extension));
+    assert(mem::eq(".toml", filename_extension, 5));
+
+    assert(false == filename.is_absolute());
+    assert(true == filename.is_relative());
+    assert(false == filename.is_root());
+    assert(false == filename.has_root());
+  }
+
+  {
+    new filename = path::from("/root/path/to/zz.toml");
+    let filename_string = filename.cstr();
+    let filename_extension = filename.extension();
+
+    assert(21 == filename.length());
+    assert(21 == filename.len);
+    static_attest(21 == len(filename_string));
+    assert(mem::eq("/root/path/to/zz.toml", filename_string, 21));
+
+    static_attest(5 == len(filename_extension));
+    assert(mem::eq(".toml", filename_extension, 5));
+
+    assert(true == filename.is_absolute());
+    assert(false == filename.is_relative());
+    assert(false == filename.is_root());
+    assert(true == filename.has_root());
+    log::info("%s", filename.display());
+  }
+
+  {
+    new filename = path::from("/");
+    let filename_string = filename.cstr();
+    let filename_extension = filename.extension();
+
+    assert(1 == filename.length());
+    assert(1 == filename.len);
+    static_attest(1 == len(filename_string));
+    assert(mem::eq("/", filename_string, 1));
+
+    static_attest(0 == len(filename_extension));
+    assert(mem::eq("", filename_extension, 0));
+
+    assert(true == filename.is_absolute());
+    assert(false == filename.is_relative());
+    assert(true == filename.is_root());
+    assert(true == filename.has_root());
+  }
+  return 0;
+} else if #(os::detect::windows) {
+  return 0;
+} else {
+  return 1;
+}

@@ -1,0 +1,123 @@
+using err
+using err::{ Err }
+using log
+using mem
+using native
+using path::{ Path, parent }
+using path_buffer
+using path_buffer::{ PathBuffer, MAX_PATH_BUFFER_BYTES }
+using string
+
+fn format_bool(bool value) -> char * {
+  if value { return "true"; }
+  return "false";
+}
+
+/**
+ * A structure that implements an _iterator_ interface to represent the
+ * eventual ancestors of a path.
+ */
+export struct Ancestors {
+  PathBuffer+4096 mut path;
+  bool ended;
+  usize offset;
+}
+
+/**
+ * A constructor for an `Ancestors` struct.
+ */
+export fn make(Ancestors new mut *self)
+  model false == self->ended
+{
+  init(self);
+}
+
+/**
+ * A constructor for an `Ancestors` struct initialized with `Path`.
+ */
+export fn from(Ancestors new mut *self, Path *path)
+  model false == self->ended
+  where safe(path->pathspec)
+  where nullterm(path->pathspec)
+{
+  self->init();
+  self->path.init(path->cstr());
+}
+
+/**
+ * Initializes a `Ancestors` struct.
+ */
+export fn init(Ancestors mut *self)
+  model false == self->ended
+{
+  self->ended = false;
+  self->offset = 0;
+}
+
+/**
+ * Marks an `Ancestors` struct as ended.
+ */
+export fn end(Ancestors mut *self)
+  model true == self->ended
+{
+  self->ended = true;
+}
+
+/**
+ * Return a `Path` struct with a pointer to the next ancestors path.
+ */
+export fn next(Ancestors mut *self) -> Path
+  model safe(return.pathspec)
+  model nullterm(return.pathspec)
+{
+  let mut offset = self->offset;
+  let current_path = self->path.as_path();
+
+  new current_parent = parent(&current_path);
+  new next_parent = parent(&current_parent.path);
+
+  let current_parent_cstr = current_parent.cstr();
+  let next_parent_cstr = next_parent.cstr();
+
+  if !self->ended {
+    if self->offset > 0 {
+      static_attest(len(current_parent_cstr) > 0);
+      self->path.clear();
+      self->path.push(current_parent_cstr);
+    }
+
+    self->offset = self->offset + 1;
+
+    if 0 == string::strlen(next_parent_cstr) {
+      self->end();
+    } else if string::strlen(current_parent_cstr) == string::strlen(next_parent_cstr) {
+      let size = string::strlen(current_parent_cstr);
+      if mem::eq(current_parent_cstr, next_parent_cstr, size) {
+        self->end();
+      }
+    } else if 0 == string::strlen(current_path.pathspec) {
+      self->end();
+    } else if self->path.as_path_ptr()->is_root() {
+      self->end();
+    }
+  } else {
+    static_attest(true == self->ended);
+  }
+
+  return self->path.as_path();
+}
+
+/**
+ * Implements `display()` to return a safe, nullterm `char *`.
+ */
+export fn display(Ancestors *self) -> char *
+  model safe(return)
+  model nullterm(return)
+{
+  new+4096 output = string::make();
+  output.format("Ancestors { ended: %s, offset: %lu, path: \"%s\" }",
+    format_bool(self->ended),
+    self->offset,
+    self->path.cstr());
+  return output.cstr();
+}

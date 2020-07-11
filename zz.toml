@@ -1,0 +1,24 @@
+[project]
+version = "0.1.0"
+name = "path"
+description = "An module for interfacing with system paths."
+cincludes = []
+cobjects = []
+pkgconfig = []
+cflags = []
+lflags = []
+
+[variants]
+default = []
+
+[dependencies]
+log = "*"
+mem = "*"
+os = "*"
+pool = "*"
+runtime_assert = "*"
+string = "*"
+
+[repos]
+os = "git://github.com/zzmodules/os"
+runtime_assert = "git://github.com/zzmodules/runtime-assert"

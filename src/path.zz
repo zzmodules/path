@@ -1,0 +1,310 @@
+using ancestors::{ Ancestors, from as from_path }
+using err
+using err::{ Err, assert }
+using log
+using mem
+using native
+using os
+using path_buffer
+using path_buffer::{ PathBuffer, PathBufferBox, MAX_PATH_BUFFER_BYTES }
+using separator
+using string
+using string::{ String }
+
+/**
+ * An immutable structure that wraps a `char *` that is treated as a file path.
+ */
+export struct Path {
+  char *pathspec;
+  u8 *mem;
+  usize len;
+}
+
+/**
+ * A structure to contain a parent path for a `Path`. Parents are copies, not
+ * pointers from the child `Path`.
+ */
+export struct ParentPath {
+  Path path;
+  PathBuffer+4096 mut buffer;
+}
+
+/**
+ * `Path` struct constructor. Initializes an empty path.
+ */
+export fn make(Path new mut *self)
+  model safe(self->pathspec)
+  model nullterm(self->pathspec)
+  model len(self->pathspec) <= MAX_PATH_BUFFER_BYTES
+  model self->len == len(self->pathspec)
+{
+  char *pathspec = "";
+  static_attest(0 == len(pathspec));
+  init(self, pathspec);
+}
+
+/**
+ * `Path` struct constructor from a given `char *` pathspec.
+ */
+export fn from(Path new mut *self, char *pathspec)
+  model safe(self->pathspec)
+  model nullterm(self->pathspec)
+  model len(self->pathspec) <= MAX_PATH_BUFFER_BYTES
+  model self->len == len(self->pathspec)
+  where len(pathspec) <= MAX_PATH_BUFFER_BYTES
+  where safe(pathspec)
+  where nullterm(pathspec)
+{
+  init(self, pathspec);
+}
+
+/**
+ * `ParentPath` struct constructor from a given child `Path` pointer.
+ */
+export fn parent(ParentPath new mut *self, Path *child)
+  model safe(self->path.pathspec)
+  model nullterm(self->path.pathspec)
+  model len(self->path.pathspec) <= MAX_PATH_BUFFER_BYTES
+  model self->path.len == len(self->path.pathspec)
+  where len(child->pathspec) <= MAX_PATH_BUFFER_BYTES
+  where safe(child->pathspec)
+  where nullterm(child->pathspec)
+{
+  let mut pathspec = child->cstr();
+  usize mut size = string::strlen(pathspec);
+
+  static_attest(len(pathspec) > size - 1);
+  while size > 0 && separator::character() != pathspec[size - 1] {
+    size--;
+  }
+
+  if size > 1 {
+    static_attest(len(pathspec) > size - 1);
+    if separator::character() == pathspec[size - 1] {
+      size--;
+    }
+  }
+
+  static_attest(len(pathspec) >= size);
+  new+4096 mut tmp = string::from(as<u8 *>(pathspec), size);
+  pathspec = tmp.cstr();
+
+  static_attest(len(pathspec) <= MAX_PATH_BUFFER_BYTES);
+  self->buffer.init(pathspec);
+  self->path.init(self->buffer.cstr());
+}
+
+/**
+ */
+export fn init(Path mut *self, char *pathspec)
+  model safe(self->pathspec)
+  model nullterm(self->pathspec)
+  model len(self->pathspec) <= MAX_PATH_BUFFER_BYTES
+  model self->len == len(self->pathspec)
+  where len(pathspec) <= MAX_PATH_BUFFER_BYTES
+  where safe(pathspec)
+  where nullterm(pathspec)
+{
+  self->pathspec = pathspec;
+  self->mem = as<u8 *>(self->pathspec);
+  self->len = string::strlen(pathspec);
+
+  static_attest(self->len == len(self->pathspec));
+  static_attest(len(self->pathspec) <= MAX_PATH_BUFFER_BYTES);
+  static_attest(safe(self->pathspec));
+  static_attest(nullterm(self->pathspec));
+}
+
+/**
+ * Returns the length in bytes for the `Path` string.
+ */
+export fn length(Path *self) -> usize
+  where safe(self->pathspec)
+  where nullterm(self->pathspec)
+{
+  return string::strlen(self->pathspec);
+}
+
+/**
+ * Returns a `char *` that represents the "extension" part of a `Path` string.
+ * This function will return an empty string if an extension cannot be found.
+ */
+export fn extension(Path *self) -> char *
+  model safe(self->pathspec)
+  model safe(return)
+  model nullterm(return)
+  where safe(self->pathspec)
+  where nullterm(self->pathspec)
+{
+  new+4096 mut extname = string::make();
+  new+4096 mut tmp = string::make();
+
+  let pathspec = self->cstr();
+  let size = string::strlen(pathspec);
+
+  static_attest(size == len(pathspec));
+  for (usize mut i = size - 1; i >= 0; --i) {
+    static_attest(i < size);
+
+    if separator::character() == pathspec[i] {
+      break;
+    }
+
+    if '.' == pathspec[i] && i > 0 {
+      if separator::character() != pathspec[i - 1] {
+        for (usize mut j = i; j < size ; ++j) {
+          extname.push(pathspec[j]);
+        }
+        break;
+      }
+    }
+  }
+
+  if extname.len > 1 {
+    return extname.cstr();
+  }
+
+  return "";
+}
+
+/**
+ * Returns `true` if the `Path` is an _absolute_ path, otherwise `false`.
+ */
+export fn is_absolute(Path *self) -> bool
+  model safe(self->pathspec)
+  where safe(self->pathspec)
+  where nullterm(self->pathspec)
+{
+  let path_string = self->cstr();
+  if 0 != path_string {
+    static_attest(len(path_string) > 0);
+    let prefix = path_string[0];
+    if separator::character() == prefix {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Returns `true` if the `Path` is a _relative_ path, the opposite of an
+ * _absolute_ path, otherwise `false`.
+ */
+export fn is_relative(Path *self) -> bool
+  model safe(self->pathspec)
+  where safe(self->pathspec)
+  where nullterm(self->pathspec)
+{
+  if false == self->is_absolute() {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Returns `true` if the path is the root path.
+ */
+export fn is_root(Path *self) -> bool
+  model safe(self->pathspec)
+  where safe(self->pathspec)
+  where nullterm(self->pathspec)
+if #(os::detect::windows) {
+  if self->is_absolute() && 3 == self->length() {
+    let pathspec = self->cstr();
+    static_attest(3 == len(pathspec));
+    if separator::character() == pathspec[2] && ':' == pathspec[1] {
+      return true;
+    }
+  }
+  return false;
+} else {
+  if self->is_absolute() && 1 == self->length() {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Returns `true` if the path contains the root path in it.
+ */
+export fn has_root(Path *self) -> bool
+  model safe(self->pathspec)
+  where safe(self->pathspec)
+  where nullterm(self->pathspec)
+if #(os::detect::windows) {
+  if self->length() >= 3 {
+    let pathspec = self->cstr();
+    static_attest(len(pathspec) >= 3);
+    if separator::character() == pathspec[2] && ':' == pathspec[1] {
+      return true;
+    }
+  }
+  return false;
+} else {
+  if self->length() >= 1 {
+    let pathspec = self->cstr();
+    static_attest(len(pathspec) >= 1);
+    if separator::character() == pathspec[0] {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Returns a `char *` string of this `Path`.
+ */
+export fn cstr(Path *self) -> char *
+  model safe(self->pathspec)
+  model len(return) <= MAX_PATH_BUFFER_BYTES
+  model safe(return)
+  model nullterm(return)
+  where safe(self->pathspec)
+  where nullterm(self->pathspec)
+{
+  static_attest(len(self->pathspec) <= MAX_PATH_BUFFER_BYTES);
+  return self->pathspec;
+}
+
+/**
+ * Returns an `Ancestors` struct that implements an _iterator_ interface
+ * that will traverse all ancestors in this `Path`, including itself.
+ */
+export fn ancestors(Path *self) -> Ancestors
+  model false == return.ended
+  model safe(self->pathspec)
+  where safe(self->pathspec)
+  where nullterm(self->pathspec)
+{
+  new path_ancestors = from_path(self);
+  return path_ancestors;
+}
+
+/**
+ * Converts this `Path` to a `PathBufferBox`, a container for a `PathBuffer+`
+ * with a fixed size of `path::MAX_PATH_BUFFER_BYTES`.
+ */
+export fn to_path_buffer(Path *self) -> PathBufferBox
+  model safe(self->pathspec)
+  where safe(self->pathspec)
+  where nullterm(self->pathspec)
+{
+  let pathspec = self->cstr();
+  PathBufferBox mut buffer;
+  buffer.init(pathspec);
+  return buffer;
+}
+
+/**
+ * Implements `display()` to return a safe, nullterm `char *`.
+ */
+export fn display(Path *self) -> char *
+  model safe(self->pathspec)
+  where safe(self->pathspec)
+  where nullterm(self->pathspec)
+{
+  return self->cstr();
+}

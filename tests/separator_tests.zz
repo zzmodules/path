@@ -1,0 +1,19 @@
+using err::{ assert }
+using mem
+using path
+using os
+
+fn main() -> int
+if #(os::detect::windows) {
+  char sep = (char) 92;
+  let string = path::separator();
+  assert(sep == path::separator::character());
+  assert(mem::eq(&sep, string, 1));
+  return 0;
+} else {
+  char sep = '/';
+  let string = path::separator();
+  assert(sep == path::separator::character());
+  assert(mem::eq(&sep, string, 1));
+  return 0;
+}

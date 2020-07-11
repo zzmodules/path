@@ -1,0 +1,46 @@
+using os
+
+static char WINDOWS[2] = { 59, 0 }; // ;
+static char POSIX[2] = { 58, 0 }; // :
+
+/**
+ * Get the operating system specific `PATH` delimiter as a `char *`.
+ */
+export fn get() -> char *
+  model safe(return)
+  model nullterm(return)
+  model 2 == len(return)
+  if #(os::detect::windows) {
+    char *delimiter = WINDOWS;
+    static_attest(safe(delimiter));
+    static_attest(nullterm(delimiter));
+    static_attest(2 == len(delimiter));
+    return delimiter;
+  } else {
+    char *delimiter = POSIX;
+    static_attest(safe(delimiter));
+    static_attest(nullterm(delimiter));
+    static_attest(2 == len(delimiter));
+    return delimiter;
+  }
+
+/**
+ * An alias for `path::delimiter::get()`.
+ */
+export fn cstr() -> char *
+  model safe(return)
+  model nullterm(return)
+  model 2 == len(return)
+{
+  return get();
+}
+
+/**
+ * Get the operating system specific `PATH` delimiter character.
+ */
+export inline fn character() -> char
+  if #(os::detect::windows) {
+    return WINDOWS[0];
+  } else {
+    return POSIX[0];
+  }

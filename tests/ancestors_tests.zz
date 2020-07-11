@@ -1,0 +1,88 @@
+using err::{ assert, panic }
+using log
+using mem
+using path
+using os
+using runtime_assert::{ assert as runtime_assert }
+using string
+
+fn test_ancestor(char *cstr, char *expected_ancestor_string)
+  where safe(cstr)
+  where nullterm(cstr)
+  where safe(expected_ancestor_string)
+  where nullterm(expected_ancestor_string)
+{
+  assert(string::strlen(cstr) == string::strlen(expected_ancestor_string));
+  assert(mem::eq(cstr, expected_ancestor_string, string::strlen(cstr)))
+}
+
+fn main() -> int
+if #(os::detect::posix) {
+  new filename = path::from("/home/user/repo/project/zz.toml");
+  let mut ancestors = filename.ancestors();
+
+  runtime_assert(false == ancestors.ended);
+  runtime_assert(0 == ancestors.offset);
+
+  {
+    let ancestor = ancestors.next();
+    let cstr = ancestor.cstr();
+
+    test_ancestor(cstr, "/home/user/repo/project/zz.toml");
+    runtime_assert(1 == ancestors.offset);
+    runtime_assert(false == ancestors.ended);
+  }
+
+  {
+    let ancestor = ancestors.next();
+    let cstr = ancestor.cstr();
+
+    test_ancestor(cstr, "/home/user/repo/project");
+    runtime_assert(2 == ancestors.offset);
+    runtime_assert(false == ancestors.ended);
+  }
+
+  {
+    let ancestor = ancestors.next();
+    let cstr = ancestor.cstr();
+
+    test_ancestor(cstr, "/home/user/repo");
+    runtime_assert(3 == ancestors.offset);
+  }
+
+  log::info("%s", ancestors.display());
+  {
+    let ancestor = ancestors.next();
+    let cstr = ancestor.cstr();
+
+    test_ancestor(cstr, "/home/user");
+    runtime_assert(4 == ancestors.offset);
+    runtime_assert(false == ancestors.ended);
+  }
+
+  {
+    let ancestor = ancestors.next();
+    let cstr = ancestor.cstr();
+
+    test_ancestor(cstr, "/home");
+    runtime_assert(5 == ancestors.offset);
+    runtime_assert(false == ancestors.ended);
+  }
+
+  {
+    let ancestor = ancestors.next();
+    let cstr = ancestor.cstr();
+
+    test_ancestor(cstr, "/");
+    runtime_assert(6 == ancestors.offset);
+    runtime_assert(true == ancestors.ended);
+  }
+
+  log::info("%s", ancestors.display());
+  return 0;
+} else if #(os::detect::windows) {
+  return 0;
+} else {
+  panic("unknown operating system");
+  return 1;
+}

@@ -1,0 +1,19 @@
+using err::{ assert }
+using mem
+using path
+using os
+
+fn main() -> int
+if #(os::detect::windows) {
+  char delimiter = ';';
+  let string = path::delimiter::cstr();
+  assert(delimiter == path::delimiter::character());
+  assert(mem::eq(&delimiter, string, 1));
+  return 0;
+} else {
+  char delimiter = ':';
+  let string = path::delimiter::cstr();
+  assert(delimiter == path::delimiter::character());
+  assert(mem::eq(&delimiter, string, 1));
+  return 0;
+}

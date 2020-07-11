@@ -1,0 +1,51 @@
+using err::{ assert, panic }
+using log
+using mem
+using path
+using os
+using runtime_assert::{ assert as runtime_assert }
+using string
+
+fn main() -> int {
+  let separator = path::separator();
+  new+4096 buffer = path::path_buffer();
+
+  buffer.push(separator);
+  buffer.push("user");
+  buffer.push("repo");
+  buffer.push("project");
+  buffer.push("zz.toml");
+
+  let buffer_string = buffer.cstr();
+  let buffer_as_path = buffer.as_path();
+  let buffer_as_path_string = buffer_as_path.cstr();
+
+  assert(string::strlen(buffer_string) == string::strlen(buffer_as_path_string));
+  assert(mem::eq(buffer_string, buffer_as_path_string, string::strlen(buffer_string)));
+
+  let buffer_extension = buffer.extension();
+  let filename_length = buffer.length();
+
+  assert(filename_length == buffer.length());
+  static_attest(filename_length == len(buffer_string));
+
+  new+1024 mut expected = string::make();
+  expected.format("%suser%srepo%sproject%szz.toml", separator, separator, separator, separator);
+
+  let expected_string = expected.cstr();
+
+  assert(string::strlen(expected_string) == filename_length);
+  assert(mem::eq(expected_string, buffer_string, filename_length));
+
+  static_attest(5 == len(buffer_extension));
+  assert(mem::eq(".toml", buffer_extension, 5));
+
+  assert(true == buffer.is_absolute());
+  assert(false == buffer.is_relative());
+  assert(false == buffer.is_root());
+  assert(true == buffer.has_root());
+
+  log::info("%s", buffer.display());
+
+  return 0;
+}

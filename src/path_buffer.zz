@@ -1,0 +1,432 @@
+using ancestors::{ Ancestors, from as ancestors_from_path }
+using err
+using err::{ Err, assert }
+using log
+using mem
+using native
+using path
+using path::{ Path }
+using separator
+using string
+using string::{ String }
+
+/**
+ * The max bytes used for a path buffer by the functions in this module.
+ */
+export const usize MAX_PATH_BUFFER_BYTES = native::PATH_MAX;
+
+/**
+ * A mutable tail sized structure for path building. The maximum tail size of
+ * this struct can ba `path::MAX_PATH_BUFFER_BYTES`.
+ */
+export struct PathBuffer+ {
+  Path mut path;
+  String+ mut pathspec;
+}
+
+/**
+ * A fixed size container of `path::MAX_PATH_BUFFER_BYTES` for a boxed
+ * `PathBuffer+`. All functions on `PathBuffer+` can be used on this type.
+ */
+export struct PathBufferBox {
+  PathBuffer+4096 mut buffer;
+}
+
+/**
+ * `PathBuffer+` constructor.
+ */
+export fn make(PathBuffer+T new mut *self)
+  where T <= MAX_PATH_BUFFER_BYTES
+{
+  char *pathspec = "";
+  static_attest(len(pathspec) <= T);
+  static_attest(safe(pathspec));
+  static_attest(nullterm(pathspec));
+  init(self, pathspec);
+}
+
+/**
+ * `PathBuffer+` constructor from an initial `char *` pathspec.
+ */
+export fn from(PathBuffer+T new mut *self, char *pathspec)
+  where T <= MAX_PATH_BUFFER_BYTES
+  where len(pathspec) <= T
+  where safe(pathspec)
+  where nullterm(pathspec)
+{
+  init(self, pathspec);
+}
+
+/**
+ * `PathBuffer+` constructor from an initial `Path` source path.
+ */
+export fn from_path(PathBuffer+T new mut *self, Path *source_path)
+  where T <= MAX_PATH_BUFFER_BYTES
+  where safe(source_path->pathspec)
+  where nullterm(source_path->pathspec)
+{
+  let pathspec = source_path->cstr();
+  static_attest(len(pathspec) <= T);
+  static_attest(safe(pathspec));
+  static_attest(nullterm(pathspec));
+  from(self, pathspec);
+}
+
+/**
+ * `PathBufferBox` (`PathBuffer+`) constructor from an initial `char *` pathspec
+ * that is * canonicalized. An `err::Err+ mut` error must be given to catch
+ * system errors that may occur during normalization (`getcwd()`, `realpath()`)
+ * or canonicalization (`realpath()`).
+ */
+export fn canonicalize(PathBufferBox new mut *self, char *pathspec, Err+ErrorTail mut *error)
+  where err::checked(*error)
+  where len(pathspec) <= MAX_PATH_BUFFER_BYTES
+  where safe(pathspec)
+  where nullterm(pathspec)
+{
+  init(self, pathspec);
+
+  self->normalize(error);
+
+  if error->check() {
+    return;
+  }
+
+  native::realpath(self->cstr(), as<char mut *>(self->cstr()), error);
+}
+
+/**
+ * Initializes a `PathBuffer+` with a `char *` pathspec.
+ */
+export fn init(PathBuffer+T mut *self, char *pathspec)
+  where T <= MAX_PATH_BUFFER_BYTES
+  where len(pathspec) <= T
+  where safe(pathspec)
+  where nullterm(pathspec)
+{
+  string::from_cstr(&self->pathspec, pathspec);
+  let ref = self->pathspec.cstr();
+  static_attest(len(ref) <= MAX_PATH_BUFFER_BYTES);
+  self->path.init(ref);
+}
+
+/**
+ * Normalizes the current pathspec for a `PathBuffer+`. An `err::Err+ mut`
+ * error must be given to catch system * errors that may occur during
+ * normalization (`getcwd()`, `realpath()`).
+ */
+export fn normalize(PathBuffer+T mut *self, Err+ErrorTail mut *error) -> bool
+  where err::checked(*error)
+{
+  let mut pathspec_ptr = as<char mut *>(self->pathspec.cstr());
+  let mut pathspec_ptr_size = string::strlen(pathspec_ptr);
+
+  static_attest(pathspec_ptr_size <= T);
+
+  // try to set current working directory
+  if pathspec_ptr_size >= 1 {
+    static_attest(len(pathspec_ptr) > 1);
+    if '.' == pathspec_ptr[0] && (0 == pathspec_ptr[1] || separator::character() == pathspec_ptr[1]) {
+      char mut cwd[2048] = {0};
+
+      if !native::getcwd(as<char mut *>(cwd), 2048, error) {
+        return false;
+      }
+
+      self->pathspec.clear();
+      self->pathspec.append_cstr(as<char *>(cwd));
+    } else if '.' == pathspec_ptr[0] && '.' == pathspec_ptr[1] {
+      char mut cwd[2048] = {0};
+      char mut resolved[2048] = {0};
+      new+2048 mut tmp = string::from_cstr(pathspec_ptr);
+
+      static_attest(err::checked(*error));
+      if !native::getcwd(as<char mut *>(cwd), 2048, error) {
+        return false;
+      }
+
+      self->pathspec.clear();
+      self->pathspec.append_cstr(as<char *>(cwd));
+      self->pathspec.append_cstr("/");
+      self->pathspec.append_cstr(tmp.cstr());
+
+      static_attest(err::checked(*error));
+      static_attest(len(pathspec_ptr) <= MAX_PATH_BUFFER_BYTES);
+
+      if !native::realpath(pathspec_ptr, resolved, error) {
+        return false;
+      }
+
+      self->pathspec.clear();
+      self->pathspec.append_cstr(resolved);
+    }
+  }
+
+  pathspec_ptr_size = string::strlen(pathspec_ptr);
+
+  if pathspec_ptr_size > 0 {
+    char mut resolved[MAX_PATH_BUFFER_BYTES] = {0};
+    usize mut j = 0;
+
+    static_attest(len(pathspec_ptr) > 0);
+
+    static_attest(safe(resolved));
+    for (usize mut i = 0; i < pathspec_ptr_size; ++i, ++j) {
+      static_attest(i < len(pathspec_ptr));
+
+      if separator::character() == pathspec_ptr[i] {
+        (void) i++; // scan forward, ignore initial separator::character()
+        static_attest(i < len(pathspec_ptr));
+        // fast-forward until there are no more extra separator::character()
+        while i < pathspec_ptr_size && separator::character() == pathspec_ptr[i] { (void) i++; }
+
+        (void) i--;
+      }
+
+      static_attest(i < len(pathspec_ptr));
+      resolved[j] = pathspec_ptr[i];
+
+      if j > 2 {
+        static_attest(j < len(resolved));
+        if '.' == resolved[j] {
+          if '.' == resolved[j - 1] {
+            while j >= 0 && '.' == resolved[j] { (void) j--; }
+
+            j--;
+            static_attest(j >= 0 && j < len(resolved));
+            while j >= 0 && separator::character() != resolved[j] { (void) j--; }
+
+            j--;
+          }
+        } else if separator::character() == resolved[j] {
+          if '.' == resolved[j - 1] {
+            j--;
+            j--;
+          }
+        }
+      }
+    }
+
+    static_attest(j < len(resolved));
+    resolved[j] = 0;
+    static_attest(nullterm(resolved));
+
+
+    self->pathspec.clear();
+    self->pathspec.len = string::strlen(resolved);
+
+    static_attest(len(pathspec_ptr) >= self->pathspec.len);
+    mem::copy(resolved, as<char mut  *>(pathspec_ptr), self->pathspec.len);
+  }
+
+  return true;
+}
+
+/**
+ * Returns the length in bytes for the `PathBuffer+` string.
+ */
+export fn length(PathBuffer+T *self) -> usize {
+  return self->pathspec.len;
+}
+
+/**
+ * Returns a `char *` string of this `PathBuffer+`.
+ */
+export fn cstr(PathBuffer+T *self) -> char *
+  model len(return) <= MAX_PATH_BUFFER_BYTES
+  model safe(return)
+  model nullterm(return)
+{
+  let value = self->pathspec.cstr();
+  static_attest(len(value) <= MAX_PATH_BUFFER_BYTES);
+  return value;
+}
+
+/**
+ * Returns an immutable `Path` that represents this `PathBuffer+`
+ */
+export fn as_path(PathBuffer+T *self) -> Path
+  model len(return.pathspec) <= MAX_PATH_BUFFER_BYTES
+  model safe(return.pathspec)
+  model nullterm(return.pathspec)
+{
+  let pathspec = self->cstr();
+  static_attest(len(pathspec) <= MAX_PATH_BUFFER_BYTES);
+  new p = path::from(pathspec);
+  return p;
+}
+
+/**
+ * Returns an immutable `Path *` that represents a pointer to this `PathBuffer+`
+ * as a `Path` type.
+ */
+export fn as_path_ptr(PathBuffer+T *self) -> Path *
+  model safe(return)
+  model len(return->pathspec) <= MAX_PATH_BUFFER_BYTES
+  model safe(return->pathspec)
+  model nullterm(return->pathspec)
+{
+  let ref = as<Path *>(&self->path);
+  static_attest(safe(ref));
+  static_attest(safe(ref->pathspec));
+  static_attest(nullterm(ref->pathspec));
+  static_attest(len(ref->pathspec) <= MAX_PATH_BUFFER_BYTES);
+  return ref;
+}
+
+/**
+ * Push a `char *` pathspec component to the buffer returning `true`
+ * upon success, otherwise `false.`
+ */
+export fn push(PathBuffer+T mut *self, char *pathspec) -> bool
+  model safe(pathspec)
+  where T > 2
+  where len(pathspec) > 0
+  where safe(pathspec)
+  where nullterm(pathspec)
+{
+  let current = self->cstr();
+  let size = self->length();
+  static_attest(len(current) == size);
+
+  if separator::character() == pathspec[0] {
+    self->pathspec.clear();
+  } else if size > 0 {
+    static_attest(size > 0);
+    let last = current[size - 1];
+    if separator::character() != last {
+      self->pathspec.push(separator::character());
+    }
+  }
+
+  let pathspec_size = string::strlen(pathspec);
+  if self->pathspec.space() >= pathspec_size {
+    self->pathspec.append_cstr(pathspec);
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Pops a pathspec component from the buffer returning `true` upon success,
+ * otherwise `false`.
+ */
+export fn pop(PathBuffer+T mut *self, Err+ErrorTail mut *error) -> bool
+  model err::checked(*error)
+  where T > 2
+  where err::checked(*error)
+{
+  if 1 == self->length() {
+    let path_string = self->cstr();
+    if 0 == string::strlen(path_string) {
+      return false;
+    }
+
+    if separator::character() == path_string[0] {
+      return false;
+    }
+  }
+
+  self->pathspec.append_cstr("..");
+
+  if self->normalize(error) {
+    static_attest(err::checked(*error));
+
+    if 0 == string::strlen(self->cstr()) {
+      if !self->push("/") {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Clears the buffer.
+ */
+export fn clear(PathBuffer+T mut *self) {
+  self->pathspec.clear();
+}
+
+/**
+ * Appends a `PathBuffer+` components to this `PathBuffer+` returning
+ * `true` upon success, otherwise `false`.
+ */
+export fn append(PathBuffer+T mut *self, PathBuffer+PathBufferTail *path_buffer) -> bool
+  where safe(path_buffer)
+  where T > 2
+  where PathBufferTail > 2
+  where len(path_buffer->pathspec) > 0
+{
+  let pathspec = path_buffer->cstr();
+  if string::strlen(pathspec) > 0 {
+    return self->push(pathspec);
+  }
+
+  return false;
+}
+
+/**
+ * Returns an `Ancestors` struct that implements an _iterator_ interface
+ * that will traverse all ancestors in this `PathBuffer+`, at this moment
+ * in time, including itself.
+ */
+export fn ancestors(PathBuffer+T *self) -> Ancestors {
+  return self->as_path_ptr()->ancestors();
+}
+
+/**
+ * Returns a `char *` that represents the "extension" part of the
+ * `PathBuffer+` string. This function will return an empty string if an
+ * extension cannot be found.
+ */
+export fn extension(PathBuffer+T *self) -> char *
+  model safe(return)
+  model nullterm(return)
+{
+  return self->as_path_ptr()->extension();
+}
+
+/**
+ * Returns `true` if the `PathBuffer+` is an _absolute_ path, otherwise `false`.
+ */
+export fn is_absolute(PathBuffer+T *self) -> bool {
+  return self->as_path_ptr()->is_absolute();
+}
+
+/**
+ * Returns `true` if the `PathBuffer+` is a _relative_ path, the opposite of an
+ * _absolute_ path, otherwise `false`.
+ */
+export fn is_relative(PathBuffer+T *self) -> bool {
+  return self->as_path_ptr()->is_relative();
+}
+
+/**
+ * Returns `true` if the `PathBuffer+` is the root path.
+ */
+export fn is_root(PathBuffer+T *self) -> bool {
+  return self->as_path_ptr()->is_root();
+}
+
+/**
+ * Returns `true` if the `PathBuffer+` contains the root path in it.
+ */
+export fn has_root(PathBuffer+T *self) -> bool {
+  return self->as_path_ptr()->has_root();
+}
+
+/**
+ * Implements `display()` to return a safe, nullterm `char *`.
+ */
+export fn display(PathBuffer+T *self) -> char *
+  model len(return) <= MAX_PATH_BUFFER_BYTES
+  model safe(return)
+  model nullterm(return)
+{
+  return self->cstr();
+}

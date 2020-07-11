@@ -1,0 +1,46 @@
+using os
+
+static char WINDOWS[2] = { 92, 0 };
+static char POSIX[2] = { 47, 0 };
+
+/**
+ * Get the operating system specific path separator as a `char *`.
+ */
+export fn get() -> char *
+  model safe(return)
+  model nullterm(return)
+  model 2 == len(return)
+  if #(os::detect::windows) {
+    char *separator = WINDOWS;
+    static_attest(safe(separator));
+    static_attest(nullterm(separator));
+    static_attest(len(separator) > 0);
+    return separator;
+  } else {
+    char *separator = POSIX;
+    static_attest(safe(separator));
+    static_attest(nullterm(separator));
+    static_attest(len(separator) > 0);
+    return separator;
+  }
+
+/**
+ * An alias for `path::separator::get()`.
+ */
+export fn cstr() -> char *
+  model safe(return)
+  model nullterm(return)
+  model 2 == len(return)
+{
+  return get();
+}
+
+/**
+ * Get the operating system specific path separator character.
+ */
+export inline fn character() -> char
+  if #(os::detect::windows) {
+    return WINDOWS[0];
+  } else {
+    return POSIX[0];
+  }
