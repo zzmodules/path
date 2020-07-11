@@ -216,7 +216,7 @@ using path
 new+1024 mut error = err::make();
 new b = path::canonicalize("../path/to/resolve", &error);
 
-if error->check() {
+if error.check() {
   // canonicalization failed, check error trace
 }
 ```
@@ -236,7 +236,7 @@ new+1024 b = path::buffer("/home/../path/dir");
 
 b.normalize(&error);
 
-if error->check() {
+if error.check() {
   // normalization failed, check error trace
 }
 ```
