@@ -4,7 +4,6 @@ using mem
 using path
 using os
 using runtime_assert::{ assert as runtime_assert }
-using string
 
 fn test_ancestor(char *cstr, char *expected_ancestor_string)
   where safe(cstr)
@@ -12,8 +11,8 @@ fn test_ancestor(char *cstr, char *expected_ancestor_string)
   where safe(expected_ancestor_string)
   where nullterm(expected_ancestor_string)
 {
-  assert(string::strlen(cstr) == string::strlen(expected_ancestor_string));
-  assert(mem::eq(cstr, expected_ancestor_string, string::strlen(cstr)))
+  assert(buffer::strlen(cstr) == buffer::strlen(expected_ancestor_string));
+  assert(mem::eq(cstr, expected_ancestor_string, buffer::strlen(cstr)))
 }
 
 fn main() -> int

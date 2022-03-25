@@ -6,7 +6,6 @@ using native
 using path::{ Path, parent }
 using path_buffer
 using path_buffer::{ PathBuffer, MAX_PATH_BUFFER_BYTES }
-using string
 
 fn format_bool(bool value) -> char * {
   if value { return "true"; }
@@ -88,14 +87,14 @@ export fn next(Ancestors mut *self) -> Path
 
     self->offset = self->offset + 1;
 
-    if 0 == string::strlen(next_parent_cstr) {
+    if 0 == buffer::strlen(next_parent_cstr) {
       self->end();
-    } else if string::strlen(current_parent_cstr) == string::strlen(next_parent_cstr) {
-      let size = string::strlen(current_parent_cstr);
+    } else if buffer::strlen(current_parent_cstr) == buffer::strlen(next_parent_cstr) {
+      let size = buffer::strlen(current_parent_cstr);
       if mem::eq(current_parent_cstr, next_parent_cstr, size) {
         self->end();
       }
-    } else if 0 == string::strlen(current_path.pathspec) {
+    } else if 0 == buffer::strlen(current_path.pathspec) {
       self->end();
     } else if self->path.as_path_ptr()->is_root() {
       self->end();
@@ -114,7 +113,7 @@ export fn display(Ancestors *self) -> char *
   model safe(return)
   model nullterm(return)
 {
-  new+4096 output = string::make();
+  new+4096 output = buffer::make();
   output.format("Ancestors { ended: %s, offset: %lu, path: \"%s\" }",
     format_bool(self->ended),
     self->offset,

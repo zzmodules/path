@@ -20,5 +20,5 @@ runtime_assert = "*"
 string = "*"
 
 [repos]
-os = "git://github.com/zzmodules/os"
-runtime_assert = "git://github.com/zzmodules/runtime-assert"
+os = "git+ssh://git@github.com/zzmodules/os.git"
+runtime_assert = "git+ssh://git@github.com/zzmodules/runtime-assert.git"

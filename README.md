@@ -12,7 +12,7 @@ Add this to your `zz.toml` file:
 path = "*"
 
 [repos]
-path = "git://github.com/zzmodules/path"
+path = "git+ssh://git@github.com/zzmodules/path.git"
 ```
 
 ## Usage

@@ -5,7 +5,7 @@ using mem
 using path
 using os
 using runtime_assert::{ assert as runtime_assert }
-using string
+using buffer
 
 fn main() -> int {
   let separator = path::separator();
@@ -24,8 +24,8 @@ fn main() -> int {
   let buffer_as_path = buffer.as_path();
   let buffer_as_path_string = buffer_as_path.cstr();
 
-  assert(string::strlen(buffer_string) == string::strlen(buffer_as_path_string));
-  assert(mem::eq(buffer_string, buffer_as_path_string, string::strlen(buffer_string)));
+  assert(buffer::strlen(buffer_string) == buffer::strlen(buffer_as_path_string));
+  assert(mem::eq(buffer_string, buffer_as_path_string, buffer::strlen(buffer_string)));
 
   let buffer_extension = buffer.extension();
   let filename_length = buffer.length();
@@ -33,12 +33,12 @@ fn main() -> int {
   assert(filename_length == buffer.length());
   static_attest(filename_length == len(buffer_string));
 
-  new+1024 mut expected = string::make();
+  new+1024 mut expected = buffer::make();
   expected.format("%suser%srepo%sproject%szz.toml", separator, separator, separator, separator);
 
   let expected_string = expected.cstr();
 
-  assert(string::strlen(expected_string) == filename_length);
+  assert(buffer::strlen(expected_string) == filename_length);
   assert(mem::eq(expected_string, buffer_string, filename_length));
 
   log::info("%s", expected_string);

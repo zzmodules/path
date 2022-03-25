@@ -7,8 +7,7 @@ using native
 using path
 using path::{ Path }
 using separator
-using string
-using string::{ String }
+using buffer::{ String }
 
 /**
  * The max bytes used for a path buffer by the functions in this module.
@@ -107,7 +106,7 @@ export fn init(PathBuffer+T mut *self, char *pathspec)
   where safe(pathspec)
   where nullterm(pathspec)
 {
-  string::from_cstr(&self->string, pathspec);
+  buffer::from_cstr(&self->string, pathspec);
   let ref = self->string.cstr();
   static_attest(len(ref) <= MAX_PATH_BUFFER_BYTES);
   self->path.init(ref);
@@ -122,7 +121,7 @@ export fn normalize(PathBuffer+T mut *self, Err+ErrorTail mut *error) -> bool
   where err::checked(*error)
 {
   let mut pathspec_ptr = as<char mut *>(self->string.cstr());
-  let mut pathspec_ptr_size = string::strlen(pathspec_ptr);
+  let mut pathspec_ptr_size = buffer::strlen(pathspec_ptr);
 
   static_attest(pathspec_ptr_size <= T);
 
@@ -131,7 +130,7 @@ export fn normalize(PathBuffer+T mut *self, Err+ErrorTail mut *error) -> bool
     static_attest(len(pathspec_ptr) > 1);
     if '.' == pathspec_ptr[0] && (0 == pathspec_ptr[1] || separator::character() == pathspec_ptr[1]) {
       char mut cwd[2048] = {0};
-      new+2048 mut tmp = string::make();
+      new+2048 mut tmp = buffer::make();
       if pathspec_ptr_size >= 2 {
         static_attest(len(pathspec_ptr) > 2);
         tmp.append_cstr(pathspec_ptr);
@@ -147,7 +146,7 @@ export fn normalize(PathBuffer+T mut *self, Err+ErrorTail mut *error) -> bool
     } else if '.' == pathspec_ptr[0] && '.' == pathspec_ptr[1] {
       char mut cwd[2048] = {0};
       char mut resolved[2048] = {0};
-      new+2048 mut tmp = string::from_cstr(pathspec_ptr);
+      new+2048 mut tmp = buffer::from_cstr(pathspec_ptr);
 
       static_attest(err::checked(*error));
       if !native::getcwd(as<char mut *>(cwd), 2048, error) {
@@ -171,7 +170,7 @@ export fn normalize(PathBuffer+T mut *self, Err+ErrorTail mut *error) -> bool
     }
   }
 
-  pathspec_ptr_size = string::strlen(pathspec_ptr);
+  pathspec_ptr_size = buffer::strlen(pathspec_ptr);
 
   if pathspec_ptr_size > 0 {
     char mut resolved[MAX_PATH_BUFFER_BYTES] = {0};
@@ -222,7 +221,7 @@ export fn normalize(PathBuffer+T mut *self, Err+ErrorTail mut *error) -> bool
 
 
     self->string.clear();
-    self->string.len = string::strlen(resolved);
+    self->string.len = buffer::strlen(resolved);
 
     static_attest(len(pathspec_ptr) >= self->string.len);
     mem::copy(resolved, as<char mut  *>(pathspec_ptr), self->string.len);
@@ -315,7 +314,7 @@ export fn push(PathBuffer+T mut *self, char *pathspec) -> bool
     }
   }
 
-  let pathspec_size = string::strlen(pathspec);
+  let pathspec_size = buffer::strlen(pathspec);
   if self->string.space() >= pathspec_size {
     self->string.append_cstr(pathspec);
     return true;
@@ -335,7 +334,7 @@ export fn pop(PathBuffer+T mut *self, Err+ErrorTail mut *error) -> bool
 {
   if 1 == self->length() {
     let path_string = self->cstr();
-    if 0 == string::strlen(path_string) {
+    if 0 == buffer::strlen(path_string) {
       return false;
     }
 
@@ -349,7 +348,7 @@ export fn pop(PathBuffer+T mut *self, Err+ErrorTail mut *error) -> bool
   if self->normalize(error) {
     static_attest(err::checked(*error));
 
-    if 0 == string::strlen(self->cstr()) {
+    if 0 == buffer::strlen(self->cstr()) {
       if !self->push("/") {
         return false;
       }
@@ -379,7 +378,7 @@ export fn append(PathBuffer+T mut *self, PathBuffer+PathBufferTail *path_buffer)
   where len(path_buffer->string) > 0
 {
   let pathspec = path_buffer->cstr();
-  if string::strlen(pathspec) > 0 {
+  if buffer::strlen(pathspec) > 0 {
     return self->push(pathspec);
   }
 

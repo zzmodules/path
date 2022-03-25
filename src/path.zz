@@ -8,8 +8,7 @@ using os
 using path_buffer
 using path_buffer::{ PathBuffer, PathBufferBox, MAX_PATH_BUFFER_BYTES }
 using separator
-using string
-using string::{ String }
+using buffer::{ String }
 
 /**
  * An immutable structure that wraps a `char *` that is treated as a file path.
@@ -71,7 +70,7 @@ export fn parent(ParentPath new mut *self, Path *child)
   where nullterm(child->pathspec)
 {
   let mut pathspec = child->cstr();
-  usize mut size = string::strlen(pathspec);
+  usize mut size = buffer::strlen(pathspec);
 
   static_attest(len(pathspec) > size - 1);
   while size > 0 && separator::character() != pathspec[size - 1] {
@@ -86,7 +85,7 @@ export fn parent(ParentPath new mut *self, Path *child)
   }
 
   static_attest(len(pathspec) >= size);
-  new+4096 mut tmp = string::from(as<u8 *>(pathspec), size);
+  new+4096 mut tmp = buffer::from(as<u8 *>(pathspec), size);
   pathspec = tmp.cstr();
 
   static_attest(len(pathspec) <= MAX_PATH_BUFFER_BYTES);
@@ -107,7 +106,7 @@ export fn init(Path mut *self, char *pathspec)
 {
   self->pathspec = pathspec;
   self->mem = as<u8 *>(self->pathspec);
-  self->len = string::strlen(pathspec);
+  self->len = buffer::strlen(pathspec);
 
   static_attest(self->len == len(self->pathspec));
   static_attest(len(self->pathspec) <= MAX_PATH_BUFFER_BYTES);
@@ -122,7 +121,7 @@ export fn length(Path *self) -> usize
   where safe(self->pathspec)
   where nullterm(self->pathspec)
 {
-  return string::strlen(self->pathspec);
+  return buffer::strlen(self->pathspec);
 }
 
 /**
@@ -136,11 +135,11 @@ export fn extension(Path *self) -> char *
   where safe(self->pathspec)
   where nullterm(self->pathspec)
 {
-  new+4096 mut extname = string::make();
-  new+4096 mut tmp = string::make();
+  new+4096 mut extname = buffer::make();
+  new+4096 mut tmp = buffer::make();
 
   let pathspec = self->cstr();
-  let size = string::strlen(pathspec);
+  let size = buffer::strlen(pathspec);
 
   static_attest(size == len(pathspec));
   for (usize mut i = size - 1; i >= 0; --i) {
